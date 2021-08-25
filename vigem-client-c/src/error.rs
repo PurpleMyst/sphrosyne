@@ -2,7 +2,7 @@
 
 use thiserror::Error;
 
-use vigem_client_sys as ffi;
+use vigem_client_c_sys as ffi;
 
 /// Represents all possible errors in the library
 #[derive(Error, Debug, Clone, Copy)]

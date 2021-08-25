@@ -1,2 +1,2 @@
 [workspace]
-members = [ "vigem-client", "vigem-client-sys" ]
+members = [ "vigem-client-c", "vigem-client-c-sys" ]

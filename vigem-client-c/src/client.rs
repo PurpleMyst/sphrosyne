@@ -13,7 +13,7 @@ use std::{
     ptr::NonNull,
 };
 
-use vigem_client_sys as ffi;
+use vigem_client_c_sys as ffi;
 
 use crate::{
     error::{check, Error, Result},

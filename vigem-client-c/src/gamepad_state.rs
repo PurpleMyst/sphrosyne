@@ -2,7 +2,7 @@
 
 use bitflags::bitflags;
 
-use vigem_client_sys as ffi;
+use vigem_client_c_sys as ffi;
 
 bitflags! {
     /// Represents an xbox 360 controller's buttons
