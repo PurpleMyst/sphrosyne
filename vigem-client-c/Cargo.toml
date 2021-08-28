@@ -1,5 +1,5 @@
 [package]
-name = "vigem-client"
+name = "vigem-client-c"
 version = "0.1.0"
 authors = ["PurpleMyst <PurpleMyst@users.noreply.github.com>"]
 edition = "2018"
