@@ -1,5 +1,5 @@
 use std::{
-    io::Cursor,
+    io::{self, Cursor},
     sync::mpsc::{Receiver, Sender},
     thread::spawn,
 };
@@ -8,12 +8,60 @@ use build_html::{Html, HtmlContainer, HtmlPage};
 use eyre::{format_err, Result};
 use image::GenericImage;
 use qrcodegen::{QrCode, QrCodeEcc};
+use slog::{debug, error, info, o, Logger};
+use tiny_http::{Header, Request, Response, Server, StatusCode};
+use tungstenite::{protocol::Role, Message, WebSocket};
+use vigem_client_c::X360State;
 
-use slog::{debug, info, o, Logger};
-use tiny_http::{Header, Response, Server, StatusCode};
+use crate::request::PadRequest;
 
 const QR_SCALE: u32 = 16;
 
+/// Convert a key into a Sec-Websocket-Accept header
+fn convert_key(key: &str) -> String {
+    let mut key = key.to_string().into_bytes();
+    key.extend("258EAFA5-E914-47DA-95CA-C5AB0DC85B11".as_bytes());
+    base64::encode(sha1::Sha1::from(key).digest().bytes())
+}
+
+/// Given a request that wants to become a websocket, make it become one and handle pad updates coming from it.
+fn handle_websocket(logger: Logger, id: usize, req_tx: Sender<PadRequest>, request: Request) {
+    let result: Result<()> = (|| {
+        let key = &request
+            .headers()
+            .iter()
+            .find(|h| h.field.equiv("Sec-WebSocket-Key"))
+            .ok_or_else(|| format_err!("no websocket key"))?
+            .value;
+
+        let mut response = Response::new_empty(StatusCode(101));
+        response.add_header(
+            Header::from_bytes("Sec-WebSocket-Accept", convert_key(key.as_str())).unwrap(),
+        );
+
+        let stream = request.upgrade("websocket", response);
+        let mut ws = WebSocket::from_raw_socket(stream, Role::Server, None);
+
+        loop {
+            let msg = ws.read_message()?;
+            let data = match msg {
+                Message::Text(data) => data.into_bytes(),
+                Message::Binary(data) => data,
+                Message::Ping(_) | Message::Pong(_) | Message::Close(_) => continue,
+            };
+            let state: X360State = serde_json::from_slice(&data)?;
+            req_tx.send(PadRequest::Update(id, state))?;
+        }
+    })();
+
+    let _ = req_tx.send(PadRequest::Discard(id));
+
+    if let Err(error) = result {
+        error!(logger, "ws.error"; "error" => #%error);
+    }
+}
+
+/// Generate a QR code from a given text and return it as a PNG data url
 fn qr_data_url(text: &str) -> Result<String> {
     let qr = QrCode::encode_text(text, QrCodeEcc::Low)?;
 
@@ -43,6 +91,7 @@ fn qr_data_url(text: &str) -> Result<String> {
     Ok(format!("data:image/png;base64,{}", base64::encode(data)))
 }
 
+/// Return the HTML of the index page
 fn index_page(port: u16) -> Result<String> {
     let host = gethostname::gethostname();
     let host = host
@@ -62,6 +111,7 @@ fn index_page(port: u16) -> Result<String> {
         .to_html_string())
 }
 
+// Return the HTML of the controller page
 fn controller_page(port: u16) -> Result<String> {
     let host = gethostname::gethostname();
     let host = host
@@ -76,6 +126,7 @@ fn controller_page(port: u16) -> Result<String> {
             ("viewport", "width=device-width, initial-scale=1.0"),
         ])
         .add_style(include_str!("style.css"))
+        // We pass in our websocket URL as a hidden input on the page so our javascript can retrieve it
         .add_raw(format_args!(
             r#"<input type="hidden" id="url" value="{}">"#,
             url
@@ -89,11 +140,7 @@ fn html_response(data: impl Into<String>) -> Response<Cursor<Vec<u8>>> {
         .with_header(Header::from_bytes(&b"Content-Type"[..], &b"text/html"[..]).unwrap())
 }
 
-pub(crate) fn mainloop(
-    logger: Logger,
-    tx: Sender<crate::ChanMessage>,
-    rx: Receiver<usize>,
-) -> Result<()> {
+pub(crate) fn mainloop(logger: Logger, tx: Sender<PadRequest>, rx: Receiver<usize>) -> Result<()> {
     let server = Server::http("0.0.0.0:0").map_err(|err| format_err!("no server :< {}", err))?;
 
     let addr = server.server_addr();
@@ -111,13 +158,13 @@ pub(crate) fn mainloop(
 
             "/websocket" => {
                 let logger = logger.clone();
-                tx.send(crate::ChanMessage::NewID)?;
-                let tx = tx.clone();
-                info!(logger, "connection");
+                tx.send(crate::PadRequest::NewID)?;
+                let req_tx = tx.clone();
 
                 let id = rx.recv()?;
                 let logger = logger.new(o!("id" => id));
-                spawn(move || crate::handle_websocket(logger, id, tx.clone(), req));
+                info!(logger, "ws.new");
+                spawn(move || handle_websocket(logger, id, req_tx.clone(), req));
             }
 
             _ => {
@@ -125,7 +172,7 @@ pub(crate) fn mainloop(
                 req.respond(Response::new(
                     status_code,
                     vec![],
-                    std::io::Cursor::new(status_code.default_reason_phrase()),
+                    io::Cursor::new(status_code.default_reason_phrase()),
                     Some(status_code.default_reason_phrase().len()),
                     None,
                 ))?;
