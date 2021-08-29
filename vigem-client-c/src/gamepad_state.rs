@@ -27,6 +27,7 @@ bitflags! {
 
 /// Represents an xbox 360 controller's state
 #[derive(Debug, Copy, Clone, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct X360State {
     /// The controller's buttons
     pub buttons: X360Buttons,
@@ -44,6 +45,23 @@ pub struct X360State {
     /// The controller's right thumbstick axes.
     /// The first element of the tuple is the X axis, while the second one is the Y AXis.
     pub right_thumbstick: (i16, i16),
+}
+
+#[cfg(feature = "serde")]
+impl serde::Serialize for X360Buttons {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.bits().serialize(serializer)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de> serde::Deserialize<'de> for X360Buttons {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let value = <u16 as serde::Deserialize<'de>>::deserialize(deserializer)?;
+
+        Self::from_bits(value)
+            .ok_or_else(|| serde::de::Error::custom(format!("Invalid X360Buttons: {:#x}", value)))
+    }
 }
 
 impl X360State {
