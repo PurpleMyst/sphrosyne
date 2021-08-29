@@ -1,1 +1,11 @@
-An opinionated Rust client for the [Virtual Gamepad Emulation Framework](https://vigem.org/) utilizing [ViGEmClient](https://github.com/ViGEm/ViGEmClient/)
+# Sphrosyne
+
+Use your phone as an Xbox 360 controller with Rust and ViGEm!
+
+## Requirements
+
+* Rust
+* ViGEm
+
+## Usage
+Type `cargo run` and navigate to the link that is printed. Then scan the QR code on your phone.
