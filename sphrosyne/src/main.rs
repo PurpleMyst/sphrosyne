@@ -4,7 +4,6 @@ use std::{
 };
 
 use eyre::Result;
-
 use slab::Slab;
 use slog::{error, info, trace, Logger};
 use tiny_http::{Header, Request, Response, StatusCode};
