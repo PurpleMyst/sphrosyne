@@ -1,6 +1,7 @@
 // @ts-check
 
 /**
+ * Draw a circle on the canvas
  * @param {CanvasRenderingContext2D} ctx
  */
 function drawCircle(ctx, { x, y, r }, fill = false) {
@@ -11,6 +12,7 @@ function drawCircle(ctx, { x, y, r }, fill = false) {
 }
 
 /**
+ * Check if a touch object intersects a given circle
  * @param {{ x: number; y: number; r: number; }} circle
  * @param {Touch} touch
  */
@@ -22,6 +24,7 @@ function intersects(circle, touch) {
 }
 
 /**
+ * Map a value from one numeric range from another
  * @param {number} input
  * @param {number} inputStart
  * @param {number} inputEnd
@@ -42,15 +45,14 @@ window.addEventListener("DOMContentLoaded", function () {
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
   document.body.append(canvas);
-
-  const width = (canvas.width = innerWidth);
-  const height = (canvas.height = innerHeight);
-
   ctx.lineWidth *= 2;
 
-  let joystickRing, joystick, n, e, w, s, buttons;
+  let width, height, joystickRing, joystick, n, e, w, s, buttons;
 
   function onResize() {
+    width = canvas.width = innerWidth;
+    height = canvas.height = innerHeight;
+
     joystickRing = {
       x: width / 4 + 10,
       y: height / 2,
