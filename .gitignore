@@ -62,4 +62,5 @@ $RECYCLE.BIN/
 # End of https://www.toptal.com/developers/gitignore/api/visualstudiocode,rust,windows
 
 /.vscode/settings.json
-main.rs
+vigme-client-c/main.rs
+vigme-client-c-sys/main.rs
