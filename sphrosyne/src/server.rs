@@ -43,14 +43,20 @@ fn handle_websocket(logger: Logger, id: usize, req_tx: Sender<PadRequest>, reque
         let mut ws = WebSocket::from_raw_socket(stream, Role::Server, None);
 
         loop {
-            let msg = ws.read_message()?;
+            let msg = match ws.read_message() {
+                Ok(msg) => msg,
+                Err(tungstenite::Error::ConnectionClosed) => return Ok(()),
+                Err(error) => return Err(error.into()),
+            };
             let data = match msg {
                 Message::Text(data) => data.into_bytes(),
                 Message::Binary(data) => data,
                 Message::Ping(_) | Message::Pong(_) | Message::Close(_) => continue,
             };
-            let state: X360State = serde_json::from_slice(&data)?;
-            req_tx.send(PadRequest::Update(id, state))?;
+            match serde_json::from_slice(&data) {
+                Ok(state) => req_tx.send(PadRequest::Update(id, state))?,
+                Err(error) => error!(logger, "ws.msg_error"; "error" => #%error),
+            }
         }
     })();
 
