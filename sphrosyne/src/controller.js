@@ -94,8 +94,8 @@ class Joystick {
     for (const touch of event.changedTouches) {
       if (intersects(this.ring, touch)) {
         this.touch = touch.identifier;
-        this.stickX = touch.screenX;
-        this.stickY = touch.screenY;
+        this.stickX = touch.clientX;
+        this.stickY = touch.clientY;
         break;
       }
     }
@@ -109,8 +109,8 @@ class Joystick {
 
     for (const touch of event.changedTouches) {
       if (touch.identifier === this.touch && intersects(this.ring, touch)) {
-        this.stickX = touch.screenX;
-        this.stickY = touch.screenY;
+        this.stickX = touch.clientX;
+        this.stickY = touch.clientY;
         break;
       }
     }
