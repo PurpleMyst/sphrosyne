@@ -163,41 +163,36 @@ class Buttons {
    * Construct a new set of buttons, which will be placed around the pivot circle
    * @param {{ x: number; y: number; r: number; }} pivot
    * @param {number} buttonRadius
+   * @param {{ color: string; mask: number; } []} [extra]
    */
-  constructor(pivot, buttonRadius) {
+  constructor(pivot, buttonRadius, extra) {
     const north = {
       x: pivot.x,
       y: pivot.y - pivot.r - buttonRadius,
       r: buttonRadius,
-      color: "gold",
-      mask: 0x8000,
     };
 
     const south = {
       x: pivot.x,
       y: pivot.y + pivot.r + buttonRadius,
       r: buttonRadius,
-      color: "green",
-      mask: 0x1000,
     };
 
     const west = {
       x: pivot.x - pivot.r - buttonRadius,
       y: pivot.y,
       r: buttonRadius,
-      color: "blue",
-      mask: 0x4000,
     };
 
     const east = {
       x: pivot.x + pivot.r + buttonRadius,
       y: pivot.y,
       r: buttonRadius,
-      color: "red",
-      mask: 0x2000,
     };
 
-    this.buttons = [north, east, west, south];
+    this.buttons = [north, east, west, south].map((r, i) =>
+      Object.assign(r, extra[i])
+    );
 
     this.state = 0;
   }
@@ -226,7 +221,7 @@ window.addEventListener("DOMContentLoaded", function () {
   document.body.append(canvas);
   ctx.lineWidth *= 2;
 
-  let leftJoystick, rightJoystick, rightButtons;
+  let leftJoystick, rightJoystick, leftButtons, rightButtons;
 
   function buildScene() {
     const width = (canvas.width = innerWidth);
@@ -234,6 +229,11 @@ window.addEventListener("DOMContentLoaded", function () {
     const buttonRadius = width / 24;
     const rightPivot = {
       x: width / 2 + width / 8,
+      y: height / 4 + 10,
+      r: buttonRadius / 2,
+    };
+    const leftPivot = {
+      x: width / 2 - width / 8,
       y: height / 4 + 10,
       r: buttonRadius / 2,
     };
@@ -249,7 +249,18 @@ window.addEventListener("DOMContentLoaded", function () {
       height / 4 - 10,
       4
     );
-    rightButtons = new Buttons(rightPivot, buttonRadius);
+    leftButtons = new Buttons(leftPivot, buttonRadius, [
+      { color: "orange", mask: 0x0001 },
+      { color: "orange", mask: 0x0008 },
+      { color: "orange", mask: 0x0004 },
+      { color: "orange", mask: 0x0002 },
+    ]);
+    rightButtons = new Buttons(rightPivot, buttonRadius, [
+      { color: "gold", mask: 0x8000 },
+      { color: "green", mask: 0x1000 },
+      { color: "blue", mask: 0x4000 },
+      { color: "red", mask: 0x2000 },
+    ]);
   }
 
   buildScene();
@@ -268,12 +279,13 @@ window.addEventListener("DOMContentLoaded", function () {
 
     leftJoystick.draw(ctx);
     rightJoystick.draw(ctx);
+    leftButtons.draw(ctx, ongoingTouches);
     rightButtons.draw(ctx, ongoingTouches);
 
     if (ws.readyState === ws.OPEN)
       ws.send(
         JSON.stringify({
-          buttons: rightButtons.state,
+          buttons: leftButtons.state | rightButtons.state,
           left_trigger: 0,
           right_trigger: 0,
           left_thumbstick: leftJoystick.stickValue,
