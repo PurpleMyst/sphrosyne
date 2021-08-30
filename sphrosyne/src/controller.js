@@ -128,6 +128,78 @@ class Joystick {
       }
     }
   }
+
+  /**
+   * @param {CanvasRenderingContext2D} ctx
+   */
+  draw(ctx) {
+    ctx.strokeStyle = "grey";
+    ctx.fillStyle = "darkgrey";
+    drawCircle(ctx, this.ring);
+    drawCircle(ctx, this.stick, true);
+  }
+}
+
+class Buttons {
+  /**
+   * Construct a new set of buttons, which will be placed around the pivot circle
+   * @param {{ x: number; y: number; r: number; }} pivot
+   * @param {number} buttonRadius
+   */
+  constructor(pivot, buttonRadius) {
+    const north = {
+      x: pivot.x,
+      y: pivot.y - pivot.r - buttonRadius,
+      r: buttonRadius,
+      color: "gold",
+      mask: 0x8000,
+    };
+
+    const south = {
+      x: pivot.x,
+      y: pivot.y + pivot.r + buttonRadius,
+      r: buttonRadius,
+      color: "green",
+      mask: 0x1000,
+    };
+
+    const west = {
+      x: pivot.x - pivot.r - buttonRadius,
+      y: pivot.y,
+      r: buttonRadius,
+      color: "blue",
+      mask: 0x4000,
+    };
+
+    const east = {
+      x: pivot.x + pivot.r + buttonRadius,
+      y: pivot.y,
+      r: buttonRadius,
+      color: "red",
+      mask: 0x2000,
+    };
+
+    this.buttons = [north, east, west, south];
+
+    this.state = 0;
+  }
+
+  /**
+   * @param {CanvasRenderingContext2D} ctx
+   * @param {Map<number, Touch>} ongoingTouches
+   */
+  draw(ctx, ongoingTouches) {
+    this.state = 0;
+    for (const button of this.buttons) {
+      const pressed = Array.from(ongoingTouches.values()).some((touch) =>
+        intersects(button, touch)
+      );
+      ctx.fillStyle = ctx.strokeStyle = button.color;
+      drawCircle(ctx, button, pressed);
+
+      if (pressed) this.state |= button.mask;
+    }
+  }
 }
 
 window.addEventListener("DOMContentLoaded", function () {
@@ -138,50 +210,21 @@ window.addEventListener("DOMContentLoaded", function () {
 
   let joystick, buttons;
 
-  function onResize() {
+  function buildScene() {
     const width = (canvas.width = innerWidth);
     const height = (canvas.height = innerHeight);
-
+    const buttonRadius = width / 16;
+    const pivot = {
+      x: width / 2 + width / 4,
+      y: height / 2,
+      r: buttonRadius / 2,
+    };
     joystick = new Joystick(width / 4 + 10, height / 2, height / 2 - 10, 4);
-
-    const west = {
-      r: width / 8,
-      y: height / 2,
-      x: joystick.centerX + joystick.outerRadius + width / 8,
-      color: "blue",
-      mask: 0x4000,
-    };
-
-    const east = {
-      r: width / 8,
-      y: height / 2,
-      x: west.x + west.r + width / 8,
-      color: "red",
-      mask: 0x2000,
-    };
-
-    const north = {
-      r: width / 8,
-      y: height / 4,
-      x: west.x + west.r,
-      color: "gold",
-      mask: 0x8000,
-    };
-
-    const south = {
-      r: width / 8,
-      y: height - height / 4,
-      x: west.x + west.r,
-      color: "green",
-      mask: 0x1000,
-    };
-
-    buttons = [north, east, west, south];
-    buttons.forEach((b) => (b.r /= 1.5));
+    buttons = new Buttons(pivot, buttonRadius);
   }
 
-  onResize();
-  window.addEventListener("resize", onResize);
+  buildScene();
+  window.addEventListener("resize", buildScene);
   window.addEventListener("beforeunload", () => ws.close());
 
   const ongoingTouches = new Map();
@@ -190,41 +233,27 @@ window.addEventListener("DOMContentLoaded", function () {
   const url = document.getElementById("url").value;
   const ws = new WebSocket(url);
 
-  const mainloop = () => {
+  function mainloop() {
     ctx.fillStyle = "black";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    ctx.strokeStyle = "grey";
-    ctx.fillStyle = "darkgrey";
-    drawCircle(ctx, joystick.ring);
+    joystick.draw(ctx);
+    buttons.draw(ctx, ongoingTouches);
 
-    drawCircle(ctx, joystick.stick, true);
-
-    let buttonMask = 0;
-    for (const button of buttons) {
-      const pressed = Array.from(ongoingTouches.values()).some((touch) =>
-        intersects(button, touch)
+    if (ws.readyState === ws.OPEN)
+      ws.send(
+        JSON.stringify({
+          buttons: buttons.state,
+          left_trigger: 0,
+          right_trigger: 0,
+          left_thumbstick: joystick.stickValue,
+          right_thumbstick: [0, 0],
+        })
       );
-      ctx.fillStyle = ctx.strokeStyle = button.color;
-      drawCircle(ctx, button, pressed);
-
-      if (pressed) buttonMask |= button.mask;
-    }
-
-    ws.send(
-      JSON.stringify({
-        buttons: buttonMask,
-        left_trigger: 0,
-        right_trigger: 0,
-        left_thumbstick: joystick.stickValue,
-        right_thumbstick: [0, 0],
-      })
-    );
 
     requestAnimationFrame(mainloop);
-  };
+  }
 
-  let joystickTouch = null;
   canvas.addEventListener("touchstart", (event) => {
     event.preventDefault();
 
@@ -250,5 +279,5 @@ window.addEventListener("DOMContentLoaded", function () {
     }
   });
 
-  ws.addEventListener("open", () => requestAnimationFrame(mainloop));
+  mainloop();
 });
