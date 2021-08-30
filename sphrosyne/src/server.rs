@@ -34,7 +34,7 @@ fn handle_websocket(logger: Logger, id: usize, req_tx: Sender<PadRequest>, reque
             .ok_or_else(|| format_err!("no websocket key"))?
             .value;
 
-        let response = Response::new_empty(StatusCode(101)).with_header(
+        let response = Response::empty(StatusCode(101)).with_header(
             Header::from_bytes("Sec-WebSocket-Accept", convert_key(key.as_str())).unwrap(),
         );
 
