@@ -124,7 +124,7 @@ class Joystick {
       if (touch.identifier === this.touch) {
         this.touch = null;
         this.stickX = this.centerX;
-        this.stickY = this.centerX;
+        this.stickY = this.centerY;
       }
     }
   }
@@ -208,19 +208,30 @@ window.addEventListener("DOMContentLoaded", function () {
   document.body.append(canvas);
   ctx.lineWidth *= 2;
 
-  let joystick, buttons;
+  let leftJoystick, rightJoystick, rightButtons;
 
   function buildScene() {
     const width = (canvas.width = innerWidth);
     const height = (canvas.height = innerHeight);
-    const buttonRadius = width / 16;
-    const pivot = {
-      x: width / 2 + width / 4,
-      y: height / 2,
+    const buttonRadius = width / 24;
+    const rightPivot = {
+      x: width / 2 + width / 8,
+      y: height / 4 + 10,
       r: buttonRadius / 2,
     };
-    joystick = new Joystick(width / 4 + 10, height / 2, height / 2 - 10, 4);
-    buttons = new Buttons(pivot, buttonRadius);
+    leftJoystick = new Joystick(
+      width / 4 + 10,
+      height - height / 4,
+      height / 4 - 10,
+      4
+    );
+    rightJoystick = new Joystick(
+      width - (width / 4 + 10),
+      height - height / 4,
+      height / 4 - 10,
+      4
+    );
+    rightButtons = new Buttons(rightPivot, buttonRadius);
   }
 
   buildScene();
@@ -237,17 +248,18 @@ window.addEventListener("DOMContentLoaded", function () {
     ctx.fillStyle = "black";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    joystick.draw(ctx);
-    buttons.draw(ctx, ongoingTouches);
+    leftJoystick.draw(ctx);
+    rightJoystick.draw(ctx);
+    rightButtons.draw(ctx, ongoingTouches);
 
     if (ws.readyState === ws.OPEN)
       ws.send(
         JSON.stringify({
-          buttons: buttons.state,
+          buttons: rightButtons.state,
           left_trigger: 0,
           right_trigger: 0,
-          left_thumbstick: joystick.stickValue,
-          right_thumbstick: [0, 0],
+          left_thumbstick: leftJoystick.stickValue,
+          right_thumbstick: rightJoystick.stickValue,
         })
       );
 
@@ -257,7 +269,8 @@ window.addEventListener("DOMContentLoaded", function () {
   canvas.addEventListener("touchstart", (event) => {
     event.preventDefault();
 
-    joystick.ontouchstart(event);
+    leftJoystick.ontouchstart(event);
+    rightJoystick.ontouchstart(event);
     for (const touch of event.changedTouches) {
       ongoingTouches.set(touch.identifier, copyTouch(touch));
     }
@@ -265,7 +278,8 @@ window.addEventListener("DOMContentLoaded", function () {
   canvas.addEventListener("touchmove", (event) => {
     event.preventDefault();
 
-    joystick.ontouchmove(event);
+    leftJoystick.ontouchmove(event);
+    rightJoystick.ontouchmove(event);
     for (const touch of event.changedTouches) {
       ongoingTouches.set(touch.identifier, copyTouch(touch));
     }
@@ -273,7 +287,8 @@ window.addEventListener("DOMContentLoaded", function () {
   canvas.addEventListener("touchend", (event) => {
     event.preventDefault();
 
-    joystick.ontouchend(event);
+    leftJoystick.ontouchend(event);
+    rightJoystick.ontouchend(event);
     for (const touch of event.changedTouches) {
       ongoingTouches.delete(touch.identifier);
     }
