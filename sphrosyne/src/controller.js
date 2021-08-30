@@ -108,11 +108,29 @@ class Joystick {
     if (this.touch === null) return;
 
     for (const touch of event.changedTouches) {
-      if (touch.identifier === this.touch && intersects(this.ring, touch)) {
-        this.stickX = touch.clientX;
-        this.stickY = touch.clientY;
-        break;
-      }
+      if (touch.identifier === this.touch)
+        if (intersects(this.ring, touch)) {
+          this.stickX = touch.clientX;
+          this.stickY = touch.clientY;
+        } else {
+          // If the touch point does not land within our ring, project the point onto its edge and set that as the stick's position
+          // Math courtesy of https://math.stackexchange.com/a/127615
+          this.stickX =
+            this.centerX +
+            (this.outerRadius * (touch.clientX - this.centerX)) /
+              Math.hypot(
+                touch.clientX - this.centerX,
+                touch.clientY - this.centerY
+              );
+          this.stickY =
+            this.centerY +
+            (this.outerRadius * (touch.clientY - this.centerY)) /
+              Math.hypot(
+                touch.clientX - this.centerX,
+                touch.clientY - this.centerY
+              );
+        }
+      break;
     }
   }
 
