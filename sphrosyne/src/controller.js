@@ -32,7 +32,6 @@ function intersects(circle, touch) {
  * @param {number} outputEnd
  */
 function map(input, inputStart, inputEnd, outputStart, outputEnd) {
-  console.log(input, inputStart, inputEnd, outputStart, outputEnd);
   const slope = (outputEnd - outputStart) / (inputEnd - inputStart);
   return Math.round(outputStart + slope * (input - inputStart));
 }
