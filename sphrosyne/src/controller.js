@@ -40,63 +40,143 @@ function copyTouch({ clientX, clientY, identifier }) {
   return { clientX, clientY, identifier };
 }
 
+class Joystick {
+  /**
+   * @param {number} x
+   * @param {number} y
+   * @param {number} outerRadius
+   * @param {number} innerRadiusDivisor
+   */
+  constructor(x, y, outerRadius, innerRadiusDivisor) {
+    this.centerX = x;
+    this.centerY = y;
+    this.outerRadius = outerRadius;
+    this.innerRadius = outerRadius / innerRadiusDivisor;
+    this.touch = null;
+
+    this.stickX = x;
+    this.stickY = y;
+  }
+
+  get ring() {
+    return { x: this.centerX, y: this.centerY, r: this.outerRadius };
+  }
+
+  get stick() {
+    return { x: this.stickX, y: this.stickY, r: this.innerRadius };
+  }
+
+  get stickValue() {
+    return [
+      map(
+        this.stickX - this.centerX,
+        -this.outerRadius,
+        this.outerRadius,
+        -(1 << 15) - 1,
+        1 << 15
+      ),
+      map(
+        this.centerY - this.stickY,
+        -this.outerRadius,
+        this.outerRadius,
+        -(1 << 15) - 1,
+        1 << 15
+      ),
+    ];
+  }
+
+  /**
+   * @param {TouchEvent} event
+   */
+  ontouchstart(event) {
+    if (this.touch !== null) return;
+
+    for (const touch of event.changedTouches) {
+      if (intersects(this.ring, touch)) {
+        this.touch = touch.identifier;
+        this.stickX = touch.screenX;
+        this.stickY = touch.screenY;
+        break;
+      }
+    }
+  }
+
+  /**
+   * @param {TouchEvent} event
+   */
+  ontouchmove(event) {
+    if (this.touch === null) return;
+
+    for (const touch of event.changedTouches) {
+      if (touch.identifier === this.touch && intersects(this.ring, touch)) {
+        this.stickX = touch.screenX;
+        this.stickY = touch.screenY;
+        break;
+      }
+    }
+  }
+
+  /**
+   * @param {TouchEvent} event
+   */
+  ontouchend(event) {
+    for (const touch of event.changedTouches) {
+      if (touch.identifier === this.touch) {
+        this.touch = null;
+        this.stickX = this.centerX;
+        this.stickY = this.centerX;
+      }
+    }
+  }
+}
+
 window.addEventListener("DOMContentLoaded", function () {
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
   document.body.append(canvas);
   ctx.lineWidth *= 2;
 
-  let width, height, joystickRing, joystick, n, e, w, s, buttons;
+  let joystick, buttons;
 
   function onResize() {
-    width = canvas.width = innerWidth;
-    height = canvas.height = innerHeight;
+    const width = (canvas.width = innerWidth);
+    const height = (canvas.height = innerHeight);
 
-    joystickRing = {
-      x: width / 4 + 10,
-      y: height / 2,
-      r: height / 2 - 10,
-    };
+    joystick = new Joystick(width / 4 + 10, height / 2, height / 2 - 10, 4);
 
-    joystick = {
-      x: joystickRing.x,
-      y: joystickRing.y,
-      r: joystickRing.r / 4,
-    };
-
-    w = {
+    const west = {
       r: width / 8,
       y: height / 2,
-      x: joystickRing.x + joystickRing.r + width / 8,
+      x: joystick.centerX + joystick.outerRadius + width / 8,
       color: "blue",
       mask: 0x4000,
     };
 
-    e = {
+    const east = {
       r: width / 8,
       y: height / 2,
-      x: w.x + w.r + width / 8,
+      x: west.x + west.r + width / 8,
       color: "red",
       mask: 0x2000,
     };
 
-    n = {
+    const north = {
       r: width / 8,
       y: height / 4,
-      x: w.x + w.r,
+      x: west.x + west.r,
       color: "gold",
       mask: 0x8000,
     };
 
-    s = {
+    const south = {
       r: width / 8,
       y: height - height / 4,
-      x: w.x + w.r,
+      x: west.x + west.r,
       color: "green",
       mask: 0x1000,
     };
 
-    buttons = [n, e, w, s];
+    buttons = [north, east, west, south];
     buttons.forEach((b) => (b.r /= 1.5));
   }
 
@@ -112,34 +192,13 @@ window.addEventListener("DOMContentLoaded", function () {
 
   const mainloop = () => {
     ctx.fillStyle = "black";
-    ctx.fillRect(0, 0, width, height);
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     ctx.strokeStyle = "grey";
     ctx.fillStyle = "darkgrey";
-    drawCircle(ctx, joystickRing);
+    drawCircle(ctx, joystick.ring);
 
-    let lx = 0;
-    let ly = 0;
-
-    if (joystickTouch === null) drawCircle(ctx, joystick, true);
-    else {
-      const { clientX, clientY } = ongoingTouches.get(joystickTouch);
-      lx = map(
-        clientX - joystick.x,
-        -joystickRing.r,
-        joystickRing.r,
-        -(1 << 15) - 1,
-        1 << 15
-      );
-      ly = map(
-        joystick.y - clientY,
-        -joystickRing.r,
-        joystickRing.r,
-        -(1 << 15) - 1,
-        1 << 15
-      );
-      drawCircle(ctx, { x: clientX, y: clientY, r: joystick.r }, true);
-    }
+    drawCircle(ctx, joystick.stick, true);
 
     let buttonMask = 0;
     for (const button of buttons) {
@@ -157,7 +216,7 @@ window.addEventListener("DOMContentLoaded", function () {
         buttons: buttonMask,
         left_trigger: 0,
         right_trigger: 0,
-        left_thumbstick: [lx, ly],
+        left_thumbstick: joystick.stickValue,
         right_thumbstick: [0, 0],
       })
     );
@@ -166,38 +225,28 @@ window.addEventListener("DOMContentLoaded", function () {
   };
 
   let joystickTouch = null;
-  canvas.addEventListener("touchstart", (evt) => {
-    evt.preventDefault();
-    const touches = evt.changedTouches;
+  canvas.addEventListener("touchstart", (event) => {
+    event.preventDefault();
 
-    for (const touch of touches) {
-      if (joystickTouch === null && intersects(joystickRing, touch))
-        joystickTouch = touch.identifier;
-
+    joystick.ontouchstart(event);
+    for (const touch of event.changedTouches) {
       ongoingTouches.set(touch.identifier, copyTouch(touch));
     }
   });
-  canvas.addEventListener("touchmove", (evt) => {
-    evt.preventDefault();
-    const touches = evt.changedTouches;
+  canvas.addEventListener("touchmove", (event) => {
+    event.preventDefault();
 
-    for (const touch of touches) {
-      if (
-        touch.identifier === joystickTouch &&
-        !intersects(joystickRing, touch)
-      )
-        continue;
-
+    joystick.ontouchmove(event);
+    for (const touch of event.changedTouches) {
       ongoingTouches.set(touch.identifier, copyTouch(touch));
     }
   });
-  canvas.addEventListener("touchend", (evt) => {
-    evt.preventDefault();
-    const touches = evt.changedTouches;
+  canvas.addEventListener("touchend", (event) => {
+    event.preventDefault();
 
-    for (const touch of touches) {
+    joystick.ontouchend(event);
+    for (const touch of event.changedTouches) {
       ongoingTouches.delete(touch.identifier);
-      if (touch.identifier == joystickTouch) joystickTouch = null;
     }
   });
 
