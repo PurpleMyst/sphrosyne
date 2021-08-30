@@ -72,15 +72,15 @@ class Joystick {
         this.stickX - this.centerX,
         -this.outerRadius,
         this.outerRadius,
-        -(1 << 15) - 1,
-        1 << 15
+        -(1 << 15),
+        (1 << 15) - 1
       ),
       map(
         this.centerY - this.stickY,
         -this.outerRadius,
         this.outerRadius,
-        -(1 << 15) - 1,
-        1 << 15
+        -(1 << 15),
+        (1 << 15) - 1
       ),
     ];
   }
